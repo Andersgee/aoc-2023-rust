@@ -2,35 +2,35 @@ pub const EXPECTED_A: &str = "8";
 pub const EXPECTED_B: &str = "2286";
 
 pub fn solve_a(input: String) -> String {
-    let v = parse_input(input);
+    let games = parse_input(input);
 
     let mut sum = 0;
-    for (id, draws) in v {
+    for game in games {
         let mut possible = true;
-        for draw in draws {
-            if draw.red > 12 || draw.green > 13 || draw.blue > 14 {
+        for hand in game.hands {
+            if hand.red > 12 || hand.green > 13 || hand.blue > 14 {
                 possible = false
             }
         }
         if possible {
-            sum += id;
+            sum += game.id;
         }
     }
     sum.to_string()
 }
 
 pub fn solve_b(input: String) -> String {
-    let v = parse_input(input);
+    let games = parse_input(input);
 
     let mut sum = 0;
-    for (id, draws) in v {
+    for game in games {
         let mut r = 0;
         let mut g = 0;
         let mut b = 0;
-        for draw in draws {
-            r = r.max(draw.red);
-            g = g.max(draw.green);
-            b = b.max(draw.blue);
+        for hand in game.hands {
+            r = r.max(hand.red);
+            g = g.max(hand.green);
+            b = b.max(hand.blue);
         }
         let power = r * g * b;
 
@@ -39,14 +39,18 @@ pub fn solve_b(input: String) -> String {
     sum.to_string()
 }
 
-#[derive(Debug)]
-struct Draw {
+struct Hand {
     red: u32,
     green: u32,
     blue: u32,
 }
 
-fn parse_input(input: String) -> Vec<(u32, Vec<Draw>)> {
+struct Game {
+    id: u32,
+    hands: Vec<Hand>,
+}
+
+fn parse_input(input: String) -> Vec<Game> {
     input
         .lines()
         .map(|line| {
@@ -55,10 +59,10 @@ fn parse_input(input: String) -> Vec<(u32, Vec<Draw>)> {
             let id = gameid.split_once(" ").unwrap().1.parse::<u32>().unwrap();
             let hands = game.split("; ").collect::<Vec<&str>>();
 
-            let mut draws: Vec<Draw> = vec![];
+            let mut draws: Vec<Hand> = vec![];
             for hand in hands {
                 let list = hand.split(", ").collect::<Vec<&str>>();
-                let mut draw = Draw {
+                let mut draw = Hand {
                     red: 0,
                     green: 0,
                     blue: 0,
@@ -77,7 +81,8 @@ fn parse_input(input: String) -> Vec<(u32, Vec<Draw>)> {
                 }
                 draws.push(draw);
             }
-            (id, draws)
+
+            Game { id, hands: draws }
         })
         .collect()
 }

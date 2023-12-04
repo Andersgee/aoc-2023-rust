@@ -1,30 +1,7 @@
 pub const EXPECTED_A: &str = "4361";
 pub const EXPECTED_B: &str = "467835";
 
-use std::collections::HashMap;
-
-#[derive(Eq, Hash, PartialEq, Debug, Clone)]
-struct Point {
-    x: i32,
-    y: i32,
-}
-
-#[derive(Debug)]
-enum Letter {
-    Number(char),
-    Symbol(char),
-}
-
-const ADJACENT_DELTA: [(i32, i32); 8] = [
-    (1, 0),
-    (0, 1),
-    (-1, 0),
-    (0, -1),
-    (1, 1),
-    (-1, 1),
-    (-1, -1),
-    (1, -1),
-];
+use std::collections::{HashMap, HashSet};
 
 pub fn solve_a(input: String) -> String {
     let map = parse_input(input);
@@ -33,12 +10,13 @@ pub fn solve_a(input: String) -> String {
     let mut sum = 0;
     for number in numbers {
         let mut has_adjacent_symbol = false;
-        for point in &number.1 {
+        for point in number.points {
             for d in ADJACENT_DELTA {
-                match map.get(&Point {
+                let adjacent_point = Point {
                     x: point.x + d.0,
                     y: point.y + d.1,
-                }) {
+                };
+                match map.get(&adjacent_point) {
                     None => {}
                     Some(letter) => match letter {
                         Letter::Number(_) => {}
@@ -51,7 +29,7 @@ pub fn solve_a(input: String) -> String {
         }
 
         if has_adjacent_symbol {
-            sum += number.0;
+            sum += number.value;
         }
     }
 
@@ -66,43 +44,29 @@ pub fn solve_b(input: String) -> String {
         .iter()
         .filter(|(_point, letter)| match letter {
             Letter::Number(_) => false,
-            Letter::Symbol(c) => {
-                if c == &'*' {
-                    true
-                } else {
-                    false
-                }
-            }
+            Letter::Symbol(char) => char == &'*',
         })
         .collect::<Vec<(&Point, &Letter)>>();
 
     let mut sum = 0;
-    let mut used_points: Vec<Point> = vec![];
     for star in stars {
-        let mut adjacent_numbers: Vec<&(i32, Vec<Point>)> = vec![];
+        let mut adjacent_numbers: HashSet<&Number> = HashSet::new();
 
         for d in ADJACENT_DELTA {
-            let point = Point {
+            let adjacent_point = Point {
                 x: star.0.x + d.0,
                 y: star.0.y + d.1,
             };
-            if used_points.contains(&&point) {
-                continue;
-            }
 
             for number in &numbers {
-                if number.1.contains(&point) {
-                    adjacent_numbers.push(number);
-                    for p in &number.1 {
-                        used_points.push(p.clone());
-                    }
-                    break;
+                if number.points.contains(&adjacent_point) {
+                    adjacent_numbers.insert(number);
                 }
             }
         }
 
-        if adjacent_numbers.len() >= 2 {
-            let gear_ratio = adjacent_numbers[0].0 * adjacent_numbers[1].0;
+        if adjacent_numbers.len() == 2 {
+            let gear_ratio: i32 = adjacent_numbers.iter().map(|number| number.value).product();
             sum += gear_ratio;
         }
     }
@@ -110,42 +74,37 @@ pub fn solve_b(input: String) -> String {
     sum.to_string()
 }
 
-fn parse_input(input: String) -> HashMap<Point, Letter> {
-    let mut map = HashMap::new();
-    for (y, line) in input.lines().enumerate() {
-        for (x, c) in line.chars().enumerate() {
-            let is_dot = c == '.';
-            let is_digit = c.is_ascii_digit();
-            let point = Point {
-                x: x.try_into().unwrap(),
-                y: y.try_into().unwrap(),
-            };
-            if is_dot {
-                continue;
-            } else if is_digit {
-                map.insert(point, Letter::Number(c));
-            } else {
-                map.insert(point, Letter::Symbol(c));
-            };
-        }
-    }
-    map
+#[derive(Eq, Hash, PartialEq)]
+struct Point {
+    x: i32,
+    y: i32,
 }
 
-fn get_numbers(map: &HashMap<Point, Letter>) -> Vec<(i32, Vec<Point>)> {
-    let mut numbers: Vec<(i32, Vec<Point>)> = vec![];
-    for (point, letter) in map {
-        //this point might already be parsed as part of a number
-        let mut ignore = false;
-        for number in &numbers {
-            if number.1.contains(point) {
-                ignore = true
-            }
-        }
-        if ignore {
-            continue;
-        }
+enum Letter {
+    Number(char),
+    Symbol(char),
+}
 
+#[derive(Hash, PartialEq, Eq)]
+struct Number {
+    value: i32,
+    points: Vec<Point>,
+}
+
+const ADJACENT_DELTA: [(i32, i32); 8] = [
+    (1, 0),
+    (0, 1),
+    (-1, 0),
+    (0, -1),
+    (1, 1),
+    (-1, 1),
+    (-1, -1),
+    (1, -1),
+];
+
+fn get_numbers(map: &HashMap<Point, Letter>) -> HashSet<Number> {
+    let mut numbers: HashSet<Number> = HashSet::new();
+    for (point, letter) in map {
         match letter {
             Letter::Symbol(_) => {}
             Letter::Number(_) => {
@@ -180,7 +139,7 @@ fn get_numbers(map: &HashMap<Point, Letter>) -> Vec<(i32, Vec<Point>)> {
                 }
 
                 //combine chars and parse it to number
-                let number = (x_start..x_end + 1)
+                let value = (x_start..x_end + 1)
                     .map(|x| {
                         let r = map.get(&Point { x, y }).unwrap();
                         match r {
@@ -197,10 +156,32 @@ fn get_numbers(map: &HashMap<Point, Letter>) -> Vec<(i32, Vec<Point>)> {
                     .map(|x| Point { x, y })
                     .collect::<Vec<Point>>();
 
-                numbers.push((number, points));
+                numbers.insert(Number { value, points });
             }
         }
     }
 
     numbers
+}
+
+fn parse_input(input: String) -> HashMap<Point, Letter> {
+    let mut map = HashMap::new();
+    for (y, line) in input.lines().enumerate() {
+        for (x, c) in line.chars().enumerate() {
+            let is_dot = c == '.';
+            let is_digit = c.is_ascii_digit();
+            let point = Point {
+                x: x.try_into().unwrap(),
+                y: y.try_into().unwrap(),
+            };
+            if is_dot {
+                continue;
+            } else if is_digit {
+                map.insert(point, Letter::Number(c));
+            } else {
+                map.insert(point, Letter::Symbol(c));
+            };
+        }
+    }
+    map
 }
